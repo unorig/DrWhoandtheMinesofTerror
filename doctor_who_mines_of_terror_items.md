@@ -167,8 +167,8 @@ These four items form a single bomb system. The game tracks all four via the `f1
 |------|---------|--------------|-----------------|
 | EXPLOSIVES | `$3D` | `$1CED` | `$FF` |
 | DETONATOR | `$3C` | `$1CEC` | `$88` (136-tick countdown) |
-| (unknown) | `$48` | `$1CF8` | `$88` |
-| (unknown) | `$4C` | `$1CFC` | `$88` |
+| detonator variant | `$48` | `$1CF8` | `$88` |
+| detonator variant | `$4C` | `$1CFC` | `$88` |
 
 ---
 
@@ -234,14 +234,72 @@ These four items form a single bomb system. The game tracks all four via the `f1
 
 ---
 
-## Unknown Items (type `$48` and `$4C`)
+## Detonator Variants (type `$48` and `$4C`)
 
-Both found in room **(10, 5)** alongside the DETONATOR. Names not found in the entity name table. Part of the 4-component bomb system (see DETONATOR/EXPLOSIVES above).
+Both found in room **(10, 5)** alongside the main DETONATOR. No display name. Part of the 4-component bomb system. Handlers at `$BCB9` and `$BCC4` set their `f1CB0` entry to `$88` (136-tick countdown) when activated. Dispatched via `$BB6B`/`$BB6F` in the item-use handler at `$BB5D`.
 
 | Type ID | Address (room col) | Address (room row) | Sub-tile X addr | Sub-tile Y addr | Found at | f1CB0 addr | Armed value |
 |---------|-------------------|-------------------|-----------------|-----------------|----------|-----------|-------------|
 | `$48` | `$1C08` = `$0A` | `$1CA8` = `$05` | `$1BB8` = `$00` | `$1C58` = `$08` | (10, 5) sub ($00, $08) | `$1CF8` | `$88` |
 | `$4C` | `$1C0C` = `$0A` | `$1CAC` = `$05` | `$1BBC` = `$3C` | `$1C5C` = `$08` | (10, 5) sub ($3C, $08) | `$1CFC` | `$88` |
+
+---
+
+## Creatures
+
+These are non-item entities with AI behaviour. They have positions in the entity tables but no name in the game's text table.
+
+### MADRAG (adult) — type `$44` and `$45`
+
+Two adult Madrags placed in the deepest mine level. When they get close to the player they trigger **"SUFFERING A MADRAG BITE"** death (speed_mod = `$14`).
+
+| Type ID | Room col addr | Room row addr | Sub-tile X addr | Sub-tile Y addr | Found at |
+|---------|--------------|--------------|-----------------|-----------------|----------|
+| `$44` | `$1C04` = `$09` | `$1CA4` = `$06` | `$1BB4` = `$08` | `$1C54` = `$A8` | **(9, 6)** sub ($08, $A8) |
+| `$45` | `$1C05` = `$06` | `$1CA5` = `$06` | `$1BB5` = `$60` | `$1C55` = `$48` | **(6, 6)** sub ($60, $48) |
+
+---
+
+### BABY MADRAG — type `$46` and `$47`
+
+Two baby Madrags, both in the same surface room. When they reach the player they trigger **"BEING ATTACKED BY A BABY MADRAG"** death (speed_mod = `$16`). The game processes both with a loop at `$B8E4`–`$B931`, iterating entity types `$46` and `$47`.
+
+| Type ID | Room col addr | Room row addr | Sub-tile X addr | Sub-tile Y addr | Found at |
+|---------|--------------|--------------|-----------------|-----------------|----------|
+| `$46` | `$1C06` = `$04` | `$1CA6` = `$00` | `$1BB6` = `$08` | `$1C56` = `$60` | **(4, 0)** sub ($08, $60) |
+| `$47` | `$1C07` = `$04` | `$1CA7` = `$00` | `$1BB7` = `$28` | `$1C57` = `$60` | **(4, 0)** sub ($28, $60) |
+
+---
+
+### Entity `$49` — Unimplemented Moving Entity
+
+Positioned at room **(5, 5)** sub ($88, $C8) — same level as SPLINX ($2F). No name in text table. No item-use handler. No movement code. **Dead code / unimplemented feature.**
+
+| | Address | Value |
+|---|---------|-------|
+| Room col | `$1C09` | `$05` |
+| Room row | `$1CA9` | `$05` |
+| Sub-tile X | `$1BB9` | `$88` |
+| Sub-tile Y | `$1C59` | `$C8` |
+
+**Code reference:** After the SPLINX patrol loop ($BA3C–$BA84, entity types $2C–$2F), there is an isolated check at `$BA8D` that sets X=$49 and calls `sA3FB` to test whether entity $49 has arrived at hardcoded position **(col=$02, row=$05)**, sub ($90, $88):
+
+```asm
+$BA86 LDA $1CCA        ; skip if already triggered
+$BA8B BEQ skip
+$BA8D LDX #$49
+$BA8F–$BA9D            ; load target pos (col=2, row=5, sub-X=$90, sub-Y=$88)
+$BA9F JSR sA3FB        ; proximity check: entity $49 vs target
+$BAA2–$BAAE            ; bail out if $DE≠0 (row mismatch) or $DA≠0 (col mismatch) or $D9≥$50 (too far)
+$BAB0–$BABD            ; on success: set $1CCA=$1CCB=$03, $2FA1=$2F3A=$0C
+$BAC0 LDY #$09
+$BAC2 JSR sC7C7        ; play sound #$09
+$BAC5 JMP jAE81        ; call 3-page sprite/screen copy routine
+```
+
+**Why it never fires:** Entity $49 starts at col=$05. The proximity check requires col=$02. There is no code anywhere that moves entity $49 (it is not in the entity movement loop). The check at `$DA ≠ 0` always fails ($05 − $02 = $03 ≠ 0).
+
+**Intended behaviour (reconstructed):** Entity $49 was apparently meant to be a moving object (possibly a mine vehicle, lift, or escape craft) travelling from room (5,5) leftward to room (2,5). On arrival it would play a sound and trigger `jAE81` (a 3-page screen/sprite data copy — probably a cutscene or vehicle sprite display). The movement system was never implemented. The entity is effectively invisible and inert in the shipped game.
 
 ---
 
@@ -278,6 +336,21 @@ These multiply the end-of-game completion score bonus when collected or delivere
 **Effect:** Collected state at `$1B20 + $3E = $1B5E` — value `$04` means delivered/complete.
 
 > The ACTIVATOR must be used at spots in rooms (13–14, row 6) before this item can be reached.
+
+---
+
+### SPLINX
+**Type ID:** `$2F`
+
+| | Address | Value |
+|---|---------|-------|
+| Room col | `$1BEF` | `$06` |
+| Room row | `$1C8F` | `$05` |
+| Sub-tile X | `$1B9F` | `$70` |
+| Sub-tile Y | `$1C3F` | `$08` |
+
+**Found at:** Room **(6, 5)**, sub-tile ($70, $08).
+**Effect:** One of three key story items checked in `completion_score_init` (`$9163`). Delivering or interacting with SPLINX triggers scroll sequence "SPLINX". Collecting all three story items (CRYSTAL, Tiru Plans, SPLINX) maximises the completion score bonus.
 
 ---
 
@@ -331,8 +404,14 @@ Walked over for score points. No use handler.
 | EGG | `$41` | `$1C01` | `$1CA1` | `$1BB1` | `$1C51` |
 | CHEMICALS | `$42` | `$1C02` | `$1CA2` | `$1BB2` | `$1C52` |
 | GEM | `$43` | `$1C03` | `$1CA3` | `$1BB3` | `$1C53` |
-| bomb component | `$48` | `$1C08` | `$1CA8` | `$1BB8` | `$1C58` |
-| bomb component | `$4C` | `$1C0C` | `$1CAC` | `$1BBC` | `$1C5C` |
+| detonator variant | `$48` | `$1C08` | `$1CA8` | `$1BB8` | `$1C58` |
+| detonator variant | `$4C` | `$1C0C` | `$1CAC` | `$1BBC` | `$1C5C` |
+| SPLINX | `$2F` | `$1BEF` | `$1C8F` | `$1B9F` | `$1C3F` |
+| MADRAG (adult) #1 | `$44` | `$1C04` | `$1CA4` | `$1BB4` | `$1C54` |
+| MADRAG (adult) #2 | `$45` | `$1C05` | `$1CA5` | `$1BB5` | `$1C55` |
+| BABY MADRAG #1 | `$46` | `$1C06` | `$1CA6` | `$1BB6` | `$1C56` |
+| BABY MADRAG #2 | `$47` | `$1C07` | `$1CA7` | `$1BB7` | `$1C57` |
+| entity $49 (unimplemented) | `$49` | `$1C09` | `$1CA9` | `$1BB9` | `$1C59` |
 
 ---
 
@@ -345,3 +424,95 @@ Walked over for score points. No use handler.
 | Sub-tile X | `$CB` (ZP) | Changes every frame |
 | Sub-tile Y | `$CC` (ZP) | Changes every frame |
 | Held item | `$1D80` | Type ID of item in hand (0 = none) |
+
+---
+
+## Death Cause System
+
+All deaths, endings, and game events are controlled through ZP `$E8` (`speed_mod`). The death display handler at `$9105` reads `speed_mod`, shifts right by 1 (→ Y), then looks up the scroll sequence index in the table `f90EF` (`$90EF`).
+
+**Negative values** (`$80`, `$C0`, `$FF`) are keyboard scan states set at `$8FAA`/`$8FBA` and cause the handler to branch away — they are the normal running game state, not deaths.
+
+### speed_mod values — death/event causes
+
+| `speed_mod` | Y (÷2) | Scroll seq | Message shown | Trigger |
+|------------|--------|------------|---------------|---------|
+| `$02` | 1 | Seq `$20` | "...IN AN ESCAPE POD" | ACTIVATOR used at room (13–14, row 6) — set at `$BD0F` |
+| `$04` | 2 | Seq `$1F` | "YOU HAVE RETURNED TO GALLIFREY IN THE TARDIS" | Tile `$B2` with sub-tile Y & `$1F` == 0 — set at `$BD2F` |
+| `$06` | 3 | Seq 4 | "THE EXPLOSION" | Bomb explodes near player (room 11, 5 danger zone) — set at `$C1F6` |
+| `$08` | 4 | Seq `$11` | "GAME OVER" *(wrong — should be Seq 5 "EXPOSURE TO RADIATION", see bug note below)* | Post-explosion radiation: after heatonite machine destroyed, ZP `$51` increments every 128 ticks. If player depth < radiation counter → death. Set at `$C0C0`. |
+| `$0A` | 5 | Seq 6 | "A SHOCK FROM A CONTROLLER" | Controller entity proximity — set at `$CE58` |
+| `$0C` | 6 | Seq 7 | "A FALL" | Room scroll handler: falling too fast — set at `$CD89` |
+| `$0E` | 7 | Seq 8 | "FALLING ON A STALAGMITE" | Stalagmite collision; also used as TARDIS/escape-pod detection flag — set at `$CA65` |
+| `$10` | 8 | Seq 9 | "SUFFOCATING" | Air countdown `aF1` reaches 0 (toxic tile without AIR MASK) — set at `$CAC0` |
+| `$12` | 9 | Seq `$0A` | "FORCED REGENERATION" | Player presses **R key** — set at `$904F` |
+| `$14` | 10 | Seq `$0B` | "SUFFERING A MADRAG BITE" | Adult MADRAG entity proximity — set at `$B971` |
+| `$16` | 11 | Seq `$0C` | "BEING ATTACKED BY A BABY MADRAG" | Baby MADRAG entities `$46`/`$47` proximity — set at `$B904` |
+
+### Radiation death — "EXPOSURE TO RADIATION" bug
+
+speed_mod=`$08` is set at `$C0C0` (inside `$C09A`–`$C0C3`). The radiation counter ZP `$51` is only non-zero after the heatonite machine has been destroyed. Every 128 ticks it increments. The player's mine depth is computed as `(room_row × 8 + sub_tile_Y >> 3)` — deeper = safer. If `depth < $51`, radiation death fires.
+
+The dispatch table `f90EF` at `$90EF` maps `speed_mod/2` (Y) to a flat scroll-pointer index:
+
+```
+Y:  0    1    2    3    4    5    6    7    8    9    10   11
+    $00  $58  $55  $0c  $2a  $10  $12  $14  $16  $18  $1a  $1c
+```
+
+Y=4 (speed_mod=`$08`) → `$2A` → Seq `$11` → shows blank line / "GAME OVER".
+The correct value should be `$0E` → Seq 5 → "EXPOSURE TO RADIATION". This is a developer bug — the wrong pointer was written to `f90EF[4]`.
+
+### Lives system
+
+`a1E` (abs `$001E`) tracks remaining lives.
+
+- **Normal death** (speed_mod `$06`–`$16`, Y ≥ 3): decrements lives. If lives remain → "THE DOCTOR REGENERATES AFTER" + cause text, restart level. If no lives → "GAME OVER AFTER" + cause text, game-over screen.
+- **Forced regen** (speed_mod `$12`, Y=9): decrements lives without regeneration animation. If no lives → game-over screen.
+- **Endings** (speed_mod `$02`/`$04`, Y=1/2): don't decrement lives; go straight to ending scroll sequence.
+
+---
+
+## Scroll Sequences Reference
+
+The scroll engine reads text pointer tables at `$95CB` (lo) / `$9626` (hi). Each entry is a flat byte index into those tables — not a sequence number. `s_scroll_init(X)` jumps the scroll engine to pointer table entry X.
+
+The 33 sequences (0–`$20`) and their starting pointer-table indices:
+
+| Seq # | Ptr idx (X) | Text | Used when |
+|-------|-------------|------|-----------|
+| 0 | `$00` | "THE DOCTOR REGENERATES AFTER" | Lead-in for every non-final death |
+| 1 | `$02` | "GAME OVER AFTER" (2 parts) | Lead-in for final death (no lives left) |
+| 2 | `$05` | "YOUR FINAL SCORE IS [score]" (2 parts) | Score display |
+| 3 | `$08` | *(3-part message — start / middle / end of score reveal)* | Score display components |
+| 4 | `$0C` | "THE EXPLOSION" | Death — bomb explosion |
+| 5 | `$0E` | "EXPOSURE TO RADIATION" | **Dead code — never shown.** Bug in `f90EF[4]`: the radiation death (speed_mod=`$08`, Y=4) dispatches to ptr index `$2A` → Seq `$11` (blank/GAME OVER) instead of `$0E` → this seq. The radiation death mechanic is fully implemented but shows the wrong message. |
+| 6 | `$10` | "A SHOCK FROM A CONTROLLER" | Death — controller entity |
+| 7 | `$12` | "A FALL" | Death — falling |
+| 8 | `$14` | "FALLING ON A STALAGMITE" | Death — stalagmite |
+| 9 | `$16` | "SUFFOCATING" | Death — toxic air |
+| `$0A` | `$18` | "FORCED REGENERATION" | Death — R key / forced |
+| `$0B` | `$1A` | "SUFFERING A MADRAG BITE" | Death — adult Madrag |
+| `$0C` | `$1C` | "BEING ATTACKED BY A BABY MADRAG" | Death — baby Madrag |
+| `$0D` | `$1E` | "THE CRYSTAL" | Story item event |
+| `$0E` | `$20` | "THE TIRU PLANS" | Story item event |
+| `$0F` | `$22` | "SPLINX" | Story item event |
+| `$10` | `$24` | *(5× blank lines — `$97D5`)* | Transition pause (level restart) |
+| `$11` | `$2A` | *(single blank line)* | Transition pause (game over) |
+| `$12` | `$2C` | *(single blank line)* | Transition |
+| `$13` | `$2E` | *(page `$98` text — unidentified)* | Transition |
+| `$14` | `$30` | "AND HAVE SUCCESSFULLY HALTED THE PRODUCTION OF HEATONITE" (2 parts) | Ending — heatonite halted |
+| `$15` | `$33` | "BUT HAVE NOT HALTED THE PRODUCTION OF HEATONITE" (2 parts) | Ending — heatonite not halted |
+| `$16` | `$36` | "THE TIME LORDS ARE" | Score verdict lead-in |
+| `$17` | `$38` | "WITH YOUR PERFORMANCE" | Score verdict lead-in |
+| `$18` | `$3A` | "VERY DISPLEASED" (2 parts) | Score < 4,100 |
+| `$19` | `$3D` | "DISPLEASED" | Score 4,100–19,999 |
+| `$1A` | `$3F` | "PLEASED" | Score 20,000–39,999 |
+| `$1B` | `$41` | "VERY PLEASED" (2 parts) | Score ≥ 40,000 |
+| `$1C` | `$44` | "PRESS F1 TO SAVE ON CASSETTE" (multi-part) | Save prompt — cassette |
+| `$1D` | `$4A` | "PRESS F3 TO SAVE ON DISC" (multi-part) | Save prompt — disc |
+| `$1E` | `$50` | "PRESS F5 TO RETURN TO GAME" (multi-part) | Save prompt — return |
+| `$1F` | `$55` | "YOU HAVE RETURNED TO GALLIFREY IN THE TARDIS" | Ending — TARDIS |
+| `$20` | `$58` | "...IN AN ESCAPE POD" | Ending — escape pod |
+
+Text is stored in 6502 ROM pages `$96`–`$98`. Charset: `$DC`=A … `$F5`=Z, `$94`=space, `$00`=end-of-string.
